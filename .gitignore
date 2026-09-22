@@ -1,0 +1,20 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/instance/
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+
+# Dados reais do usuário (não sobem pro Git)
+storage/documents/*
+storage/assets/*
+!storage/documents/.gitkeep
+!storage/assets/.gitkeep
+
+# Ambiente
+.env
+.vscode/
+.DS_Store
