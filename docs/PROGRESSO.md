@@ -9,3 +9,8 @@
 - Flask + Flask-SQLAlchemy instalados.
 - App factory (`create_app`) criada em `app/__init__.py`.
 - Rota de teste `/api/ping` funcionando.
+
+## Parte 3 — Modelagem do banco
+- Modelo `Folder` criado (hierarquia via parent_id, lixeira via deleted_at).
+- Modelo `Document` criado (conteúdo referenciado por content_path, tipo híbrido).
+- Script `create_db.py` gera as tabelas em instance/app.db.
