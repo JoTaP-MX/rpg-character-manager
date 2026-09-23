@@ -11,6 +11,9 @@ def create_app():
 
     db.init_app(app)
 
+    from app.routes.folders import folders_bp
+    app.register_blueprint(folders_bp)
+
     @app.route('/api/ping')
     def ping():
         return jsonify({'status': 'ok'})

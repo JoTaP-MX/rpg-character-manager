@@ -14,3 +14,8 @@
 - Modelo `Folder` criado (hierarquia via parent_id, lixeira via deleted_at).
 - Modelo `Document` criado (conteúdo referenciado por content_path, tipo híbrido).
 - Script `create_db.py` gera as tabelas em instance/app.db.
+
+## Parte 4 — CRUD de pastas
+- Service `folder_service.py`: listar, criar, renomear, mover e excluir (soft delete) pastas.
+- Rotas `/api/folders` (GET, POST, GET/:id, PATCH, DELETE) registradas via blueprint.
+- Testado com curl: criação e listagem funcionando.
