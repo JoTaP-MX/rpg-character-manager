@@ -12,7 +12,9 @@ def create_app():
     db.init_app(app)
 
     from app.routes.folders import folders_bp
+    from app.routes.documents import documents_bp
     app.register_blueprint(folders_bp)
+    app.register_blueprint(documents_bp)
 
     @app.route('/api/ping')
     def ping():

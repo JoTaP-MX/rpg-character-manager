@@ -19,3 +19,9 @@
 - Service `folder_service.py`: listar, criar, renomear, mover e excluir (soft delete) pastas.
 - Rotas `/api/folders` (GET, POST, GET/:id, PATCH, DELETE) registradas via blueprint.
 - Testado com curl: criação e listagem funcionando.
+
+## Parte 5 — CRUD de documentos
+- Camada `file_storage.py`: grava/lê/apaga arquivos .md em storage/documents/, nomeados pelo ID do documento.
+- Service `document_service.py`: banco guarda metadado, arquivo guarda o conteúdo Markdown.
+- Rotas `/api/documents` (GET, POST, GET/:id, PATCH, DELETE) registradas.
+- Testado com curl: criação grava o .md real no disco, leitura confere.
