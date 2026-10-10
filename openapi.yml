@@ -1,0 +1,1053 @@
+openapi: 3.0.3
+info:
+  title: Visual Codex API
+  description: >
+    API da aplicação Visual Codex (anteriormente chamada "RPG Character Manager").
+    Aplicação local para criar, organizar e visualizar personagens, campanhas,
+    locais e qualquer outro conteúdo de RPG, onde cada documento é escrito
+    livremente em Markdown.
+
+
+    Este arquivo descreve tanto os endpoints já implementados quanto os
+    planejados (ver campo `x-status` em cada operação: `implemented` ou
+    `planned`). Endpoints `planned` ainda não existem no backend — este
+    arquivo serve como especificação para guiar a implementação deles.
+
+
+    Não há autenticação multiusuário: a aplicação roda localmente, para uma
+    pessoa só. O recurso `/api/me` representa um perfil local (nome de
+    exibição, foto), não um sistema de login.
+  version: 0.2.0
+  contact:
+    name: Visual Codex
+
+servers:
+  - url: http://127.0.0.1:5000
+    description: Servidor de desenvolvimento local (Flask)
+
+tags:
+  - name: Folders
+    description: Pastas e subpastas — organização hierárquica da biblioteca.
+  - name: Campaigns
+    description: >
+      Atalho conceitual sobre pastas raiz (sem parent_id). Uma "campanha" é,
+      tecnicamente, uma pasta sem pai — este grupo existe só para dar ao
+      frontend um endpoint semântico, sem criar uma tabela nova no banco.
+  - name: Documents
+    description: Personagens, locais, itens, criaturas — qualquer conteúdo em Markdown.
+  - name: Assets
+    description: Upload e gerenciamento de imagens associadas a documentos.
+  - name: Trash
+    description: Itens excluídos (soft delete) — restauração e exclusão definitiva.
+  - name: Search
+    description: Busca textual na biblioteca.
+  - name: Tags
+    description: Marcação livre de documentos, além do campo "type".
+  - name: Favorites
+    description: Documentos marcados como favoritos/fixados.
+  - name: Links
+    description: Hyperlinks [[Nome]] entre documentos e backlinks (Fase 2 do roadmap).
+  - name: Profile
+    description: Perfil local do usuário (nome de exibição, foto) — sem autenticação.
+  - name: Settings
+    description: Preferências da aplicação (tema, idioma).
+  - name: Library
+    description: Importação e exportação da biblioteca inteira.
+  - name: Utility
+    description: Endpoints utilitários (health check).
+
+paths:
+
+  # ------------------------------------------------------------------
+  # FOLDERS
+  # ------------------------------------------------------------------
+  /api/folders:
+    get:
+      tags: [Folders]
+      operationId: listFolders
+      summary: Lista pastas
+      x-status: implemented
+      parameters:
+        - name: parent_id
+          in: query
+          description: Filtra por pasta pai. Omitido = lista as pastas raiz.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de pastas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+    post:
+      tags: [Folders]
+      operationId: createFolder
+      summary: Cria uma pasta
+      x-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                parent_id:
+                  type: integer
+                  nullable: true
+      responses:
+        '201':
+          description: Pasta criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/folders/tree:
+    get:
+      tags: [Folders]
+      operationId: getFolderTree
+      summary: Retorna a árvore completa de pastas numa única chamada
+      description: >
+        Pensado para popular seletores de pasta na interface (ex: modal de
+        "adicionar personagem rápido"), evitando N chamadas para montar a
+        hierarquia manualmente.
+      x-status: planned
+      responses:
+        '200':
+          description: Árvore de pastas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FolderTreeNode'
+
+  /api/folders/{folder_id}:
+    parameters:
+      - $ref: '#/components/parameters/FolderId'
+    get:
+      tags: [Folders]
+      operationId: getFolder
+      summary: Busca uma pasta
+      x-status: implemented
+      responses:
+        '200':
+          description: Pasta encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Folders]
+      operationId: updateFolder
+      summary: Renomeia e/ou move a pasta
+      x-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                parent_id:
+                  type: integer
+                  nullable: true
+      responses:
+        '200':
+          description: Pasta atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '400':
+          description: Movimento inválido (exemplo - mover a pasta para dentro dela mesma)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Folders]
+      operationId: softDeleteFolder
+      summary: Envia a pasta para a lixeira (soft delete)
+      x-status: implemented
+      responses:
+        '204':
+          description: Pasta movida para a lixeira
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/folders/{folder_id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/FolderId'
+    post:
+      tags: [Trash]
+      operationId: restoreFolder
+      summary: Restaura uma pasta da lixeira
+      x-status: planned
+      responses:
+        '200':
+          description: Pasta restaurada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/folders/{folder_id}/permanent:
+    parameters:
+      - $ref: '#/components/parameters/FolderId'
+    delete:
+      tags: [Trash]
+      operationId: permanentlyDeleteFolder
+      summary: Exclui a pasta definitivamente (irreversível)
+      description: >
+        Só deve ser chamado para uma pasta que já está na lixeira. Remove a
+        linha do banco. Exige confirmação explícita no frontend antes de
+        chamar este endpoint.
+      x-status: planned
+      responses:
+        '204':
+          description: Pasta excluída definitivamente
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ------------------------------------------------------------------
+  # CAMPAIGNS (atalho sobre pastas raiz)
+  # ------------------------------------------------------------------
+  /api/campaigns:
+    get:
+      tags: [Campaigns]
+      operationId: listCampaigns
+      summary: Lista campanhas (pastas raiz)
+      description: Equivalente a `GET /api/folders` sem `parent_id`.
+      x-status: planned
+      responses:
+        '200':
+          description: Lista de campanhas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+    post:
+      tags: [Campaigns]
+      operationId: createCampaign
+      summary: Cria uma nova campanha (pasta raiz)
+      description: Equivalente a `POST /api/folders` sem `parent_id`.
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Campanha criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Folder'
+
+  # ------------------------------------------------------------------
+  # DOCUMENTS
+  # ------------------------------------------------------------------
+  /api/documents:
+    get:
+      tags: [Documents]
+      operationId: listDocuments
+      summary: Lista documentos
+      x-status: implemented
+      parameters:
+        - name: folder_id
+          in: query
+          schema:
+            type: integer
+          description: Filtra por pasta
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Filtra por tipo/categoria (ex "personagem", "item") — filtro ainda não implementado, planejado.
+      responses:
+        '200':
+          description: Lista de documentos (sem o conteúdo Markdown completo)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentSummary'
+    post:
+      tags: [Documents]
+      operationId: createDocument
+      summary: Cria um documento (grava o .md em disco)
+      x-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, folder_id]
+              properties:
+                title:
+                  type: string
+                folder_id:
+                  type: integer
+                type:
+                  type: string
+                  default: documento
+                content:
+                  type: string
+                  default: ''
+      responses:
+        '201':
+          description: Documento criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/documents/{document_id}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Documents]
+      operationId: getDocument
+      summary: Busca um documento, incluindo o conteúdo Markdown
+      x-status: implemented
+      responses:
+        '200':
+          description: Documento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Documents]
+      operationId: updateDocument
+      summary: Atualiza título, tipo, pasta e/ou conteúdo
+      x-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                folder_id:
+                  type: integer
+                type:
+                  type: string
+      responses:
+        '200':
+          description: Documento atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Documents]
+      operationId: softDeleteDocument
+      summary: Envia o documento para a lixeira (soft delete)
+      x-status: implemented
+      responses:
+        '204':
+          description: Documento movido para a lixeira
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/documents/{document_id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [Trash]
+      operationId: restoreDocument
+      summary: Restaura um documento da lixeira
+      x-status: planned
+      responses:
+        '200':
+          description: Documento restaurado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/documents/{document_id}/permanent:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    delete:
+      tags: [Trash]
+      operationId: permanentlyDeleteDocument
+      summary: Exclui o documento definitivamente (irreversível)
+      description: Remove a linha do banco e o arquivo .md correspondente em disco.
+      x-status: planned
+      responses:
+        '204':
+          description: Documento excluído definitivamente
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/documents/{document_id}/export:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Documents]
+      operationId: exportDocument
+      summary: Baixa o arquivo .md bruto do documento
+      x-status: planned
+      responses:
+        '200':
+          description: Arquivo Markdown
+          content:
+            text/markdown:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ------------------------------------------------------------------
+  # ASSETS (Parte 6 do roadmap)
+  # ------------------------------------------------------------------
+  /api/documents/{document_id}/assets:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Assets]
+      operationId: listDocumentAssets
+      summary: Lista as imagens associadas ao documento
+      x-status: planned
+      responses:
+        '200':
+          description: Lista de assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asset'
+    post:
+      tags: [Assets]
+      operationId: uploadDocumentAsset
+      summary: Faz upload de uma imagem e associa ao documento
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Asset criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '400':
+          description: Arquivo inválido (tipo ou tamanho não permitido)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/assets/{asset_id}:
+    parameters:
+      - name: asset_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Assets]
+      operationId: getAsset
+      summary: Baixa/serve o arquivo de imagem
+      x-status: planned
+      responses:
+        '200':
+          description: Arquivo de imagem
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Assets]
+      operationId: deleteAsset
+      summary: Remove a imagem (do banco e do disco)
+      x-status: planned
+      responses:
+        '204':
+          description: Asset removido
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ------------------------------------------------------------------
+  # TRASH
+  # ------------------------------------------------------------------
+  /api/trash:
+    get:
+      tags: [Trash]
+      operationId: listTrash
+      summary: Lista tudo que está na lixeira (pastas e documentos juntos)
+      x-status: planned
+      responses:
+        '200':
+          description: Itens na lixeira
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrashItem'
+
+  # ------------------------------------------------------------------
+  # SEARCH
+  # ------------------------------------------------------------------
+  /api/search:
+    get:
+      tags: [Search]
+      operationId: search
+      summary: Busca documentos por título (futuramente também por conteúdo)
+      x-status: planned
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resultados da busca
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentSummary'
+
+  # ------------------------------------------------------------------
+  # TAGS
+  # ------------------------------------------------------------------
+  /api/tags:
+    get:
+      tags: [Tags]
+      operationId: listTags
+      summary: Lista todas as tags em uso na biblioteca
+      x-status: planned
+      responses:
+        '200':
+          description: Lista de tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+
+  /api/documents/{document_id}/tags:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [Tags]
+      operationId: addDocumentTag
+      summary: Adiciona uma tag ao documento
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag]
+              properties:
+                tag:
+                  type: string
+      responses:
+        '201':
+          description: Tag adicionada
+
+  /api/documents/{document_id}/tags/{tag}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+      - name: tag
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      tags: [Tags]
+      operationId: removeDocumentTag
+      summary: Remove uma tag do documento
+      x-status: planned
+      responses:
+        '204':
+          description: Tag removida
+
+  # ------------------------------------------------------------------
+  # FAVORITES
+  # ------------------------------------------------------------------
+  /api/favorites:
+    get:
+      tags: [Favorites]
+      operationId: listFavorites
+      summary: Lista documentos favoritados/fixados
+      x-status: planned
+      responses:
+        '200':
+          description: Lista de favoritos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentSummary'
+
+  /api/documents/{document_id}/favorite:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    post:
+      tags: [Favorites]
+      operationId: favoriteDocument
+      summary: Marca o documento como favorito
+      x-status: planned
+      responses:
+        '204':
+          description: Documento favoritado
+    delete:
+      tags: [Favorites]
+      operationId: unfavoriteDocument
+      summary: Remove o documento dos favoritos
+      x-status: planned
+      responses:
+        '204':
+          description: Documento removido dos favoritos
+
+  # ------------------------------------------------------------------
+  # LINKS / BACKLINKS (Fase 2 do roadmap — hyperlinks [[Nome]])
+  # ------------------------------------------------------------------
+  /api/documents/{document_id}/links:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Links]
+      operationId: getDocumentLinks
+      summary: Lista os documentos para os quais este documento linka ([[Nome]])
+      description: Depende do parser de Markdown de hyperlinks, planejado para a Fase 2.
+      x-status: planned
+      responses:
+        '200':
+          description: Lista de documentos referenciados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentSummary'
+
+  /api/documents/{document_id}/backlinks:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Links]
+      operationId: getDocumentBacklinks
+      summary: Lista os documentos que linkam para este documento
+      x-status: planned
+      responses:
+        '200':
+          description: Lista de documentos que referenciam este
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentSummary'
+
+  # ------------------------------------------------------------------
+  # PROFILE (perfil local, sem autenticação)
+  # ------------------------------------------------------------------
+  /api/me:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      summary: Retorna o perfil local (nome de exibição, foto)
+      x-status: planned
+      responses:
+        '200':
+          description: Perfil local
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+    patch:
+      tags: [Profile]
+      operationId: updateProfile
+      summary: Atualiza o nome de exibição
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+      responses:
+        '200':
+          description: Perfil atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /api/me/avatar:
+    post:
+      tags: [Profile]
+      operationId: uploadAvatar
+      summary: Faz upload da foto de perfil
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Foto atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  # ------------------------------------------------------------------
+  # SETTINGS (tema, idioma)
+  # ------------------------------------------------------------------
+  /api/settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      summary: Retorna as preferências da aplicação
+      x-status: planned
+      responses:
+        '200':
+          description: Preferências atuais
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+    patch:
+      tags: [Settings]
+      operationId: updateSettings
+      summary: Atualiza tema e/ou idioma
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                theme:
+                  $ref: '#/components/schemas/Theme'
+                language:
+                  type: string
+                  example: pt-BR
+      responses:
+        '200':
+          description: Preferências atualizadas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+
+  # ------------------------------------------------------------------
+  # LIBRARY (import/export completo)
+  # ------------------------------------------------------------------
+  /api/export:
+    get:
+      tags: [Library]
+      operationId: exportLibrary
+      summary: Exporta a biblioteca inteira (pastas + documentos + assets) como .zip
+      x-status: planned
+      responses:
+        '200':
+          description: Arquivo zip da biblioteca
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+
+  /api/import:
+    post:
+      tags: [Library]
+      operationId: importLibrary
+      summary: Importa uma biblioteca exportada anteriormente
+      x-status: planned
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Importação concluída
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  folders_created:
+                    type: integer
+                  documents_created:
+                    type: integer
+
+  # ------------------------------------------------------------------
+  # UTILITY
+  # ------------------------------------------------------------------
+  /api/ping:
+    get:
+      tags: [Utility]
+      operationId: ping
+      summary: Health check do servidor
+      x-status: implemented
+      responses:
+        '200':
+          description: Servidor no ar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+
+  parameters:
+    FolderId:
+      name: folder_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Requisição inválida (campo obrigatório ausente, por exemplo)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+
+    Folder:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Preenchido apenas quando o recurso está na lixeira.
+
+    FolderTreeNode:
+      allOf:
+        - $ref: '#/components/schemas/Folder'
+        - type: object
+          properties:
+            children:
+              type: array
+              items:
+                $ref: '#/components/schemas/FolderTreeNode'
+
+    DocumentSummary:
+      type: object
+      description: Representação de documento sem o conteúdo Markdown completo.
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          example: personagem
+        folder_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Document:
+      allOf:
+        - $ref: '#/components/schemas/DocumentSummary'
+        - type: object
+          properties:
+            content:
+              type: string
+              description: Conteúdo Markdown completo, lido do arquivo .md em disco.
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+        document_id:
+          type: integer
+        filename:
+          type: string
+        url:
+          type: string
+          description: Caminho/URL para baixar a imagem (ex. /api/assets/12).
+        mime_type:
+          type: string
+          example: image/png
+        size_bytes:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Tag:
+      type: object
+      properties:
+        name:
+          type: string
+        usage_count:
+          type: integer
+
+    TrashItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [folder, document]
+        name:
+          type: string
+          description: Nome da pasta ou título do documento.
+        deleted_at:
+          type: string
+          format: date-time
+
+    UserProfile:
+      type: object
+      description: >
+        Perfil local único da aplicação (não é um sistema de login/autenticação
+        multiusuário).
+      properties:
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    Theme:
+      type: string
+      enum: [light, dark, system]
+      default: system
+
+    Settings:
+      type: object
+      properties:
+        theme:
+          $ref: '#/components/schemas/Theme'
+        language:
+          type: string
+          example: pt-BR
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Documento não encontrado.

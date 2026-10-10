@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap');
+
+:root,
+[data-theme='light'] {
+  --paper: #f3ead8;
+  --bone: #e4d5b8;
+  --ink: #1b1610;
+  --amber: #e3a117;
+  --brick: #b63b28;
+  --moss: #3c684c;
+  --slate: #4a5560;
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Source Sans 3', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+[data-theme='dark'] {
+  --paper: #1b1610;
+  --bone: #2b241b;
+  --ink: #f3ead8;
+  --amber: #e3a117;
+  --brick: #d45a45;
+  --moss: #6ea57c;
+  --slate: #8b97a3;
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+}
